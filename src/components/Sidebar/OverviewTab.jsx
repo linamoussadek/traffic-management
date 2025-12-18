@@ -122,32 +122,43 @@ export default function OverviewTab() {
       setRoadNetwork(roadNetwork)
       
       // Find closure boundaries
-      // Combine all route geometries into a single array of [lng, lat] coordinates
-      const allRouteCoords = []
+      // Keep routes separate to avoid diagonal connections between different routes
+      // Create a MultiLineString from all routes
+      const routeLineStrings = []
       
       routes.forEach(r => {
+        let routeCoords = []
+        
         if (r.geometry && Array.isArray(r.geometry) && r.geometry.length > 0) {
           // geometry is already in [lng, lat] format
-          r.geometry.forEach(coord => {
-            if (Array.isArray(coord) && coord.length >= 2 && 
-                typeof coord[0] === 'number' && typeof coord[1] === 'number' &&
-                !isNaN(coord[0]) && !isNaN(coord[1])) {
-              allRouteCoords.push(coord)
-            }
-          })
+          routeCoords = r.geometry.filter(coord => 
+            Array.isArray(coord) && 
+            coord.length >= 2 && 
+            typeof coord[0] === 'number' && 
+            typeof coord[1] === 'number' &&
+            !isNaN(coord[0]) && 
+            !isNaN(coord[1])
+          )
         } else if (r.coordinates && Array.isArray(r.coordinates) && r.coordinates.length > 0) {
           // coordinates are in [lat, lng] format, convert to [lng, lat]
-          r.coordinates.forEach(c => {
-            if (Array.isArray(c) && c.length >= 2 && 
-                typeof c[0] === 'number' && typeof c[1] === 'number' &&
-                !isNaN(c[0]) && !isNaN(c[1])) {
-              allRouteCoords.push([c[1], c[0]]) // Convert [lat, lng] to [lng, lat]
-            }
-          })
+          routeCoords = r.coordinates
+            .filter(c => 
+              Array.isArray(c) && 
+              c.length >= 2 && 
+              typeof c[0] === 'number' && 
+              typeof c[1] === 'number' &&
+              !isNaN(c[0]) && 
+              !isNaN(c[1])
+            )
+            .map(c => [c[1], c[0]]) // Convert [lat, lng] to [lng, lat]
+        }
+        
+        if (routeCoords.length >= 2) {
+          routeLineStrings.push(routeCoords)
         }
       })
       
-      if (allRouteCoords.length === 0) {
+      if (routeLineStrings.length === 0) {
         console.error('Routes structure:', routes.map(r => ({
           hasGeometry: !!r.geometry,
           geometryLength: r.geometry?.length,
@@ -159,11 +170,10 @@ export default function OverviewTab() {
         throw new Error('No valid route coordinates found. Check console for route structure details.')
       }
       
-      console.log(`Processing ${allRouteCoords.length} route coordinates`)
-      console.log('Sample coordinates:', allRouteCoords.slice(0, 3))
+      console.log(`Processing ${routeLineStrings.length} separate routes with ${routeLineStrings.reduce((sum, r) => sum + r.length, 0)} total coordinates`)
       
-      // Pass as a flat array of coordinates directly
-      const closureAnalysis = findClosureBoundaries(allRouteCoords, roadNetwork, 50)
+      // Pass routes as separate line strings to avoid diagonal connections
+      const closureAnalysis = findClosureBoundaries(routeLineStrings, roadNetwork, 50)
       
       setClosurePolygon(closureAnalysis.closurePolygon)
       setAffectedRoads(closureAnalysis.affectedRoads)

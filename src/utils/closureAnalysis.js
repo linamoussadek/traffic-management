@@ -1,4 +1,5 @@
 import * as turf from '@turf/turf'
+// Note: pointToLineDistance might need to be imported separately in some turf versions
 
 /**
  * Find closure boundaries where open roads meet closed corridors
@@ -12,21 +13,55 @@ export const findClosureBoundaries = (routeGeometry, roadNetwork, bufferMeters =
     }
   }
   
-  // Ensure routeGeometry is a LineString
+  // Ensure routeGeometry is a LineString or MultiLineString
   let routeLine
   if (Array.isArray(routeGeometry)) {
-    // Check if it's a flat array of coordinates: [[lng, lat], [lng, lat], ...]
-    // or an array of route objects
-    let allCoords = []
-    
-    // First check: is the first element a coordinate array (has 2 numbers)?
+    // Check if it's an array of route coordinate arrays (separate routes)
     const firstElement = routeGeometry[0]
+    
     if (Array.isArray(firstElement) && 
-        firstElement.length >= 2 && 
-        typeof firstElement[0] === 'number' && 
-        typeof firstElement[1] === 'number') {
+        firstElement.length > 0 && 
+        Array.isArray(firstElement[0]) && 
+        firstElement[0].length >= 2 &&
+        typeof firstElement[0][0] === 'number') {
+      // It's an array of separate route coordinate arrays: [[[lng, lat], ...], [[lng, lat], ...], ...]
+      // Create a MultiLineString to keep routes separate (prevents diagonal connections)
+      const validRoutes = routeGeometry
+        .map(route => {
+          if (!Array.isArray(route) || route.length < 2) return null
+          const validCoords = route.filter(c => 
+            Array.isArray(c) && 
+            c.length >= 2 && 
+            typeof c[0] === 'number' && 
+            typeof c[1] === 'number' &&
+            !isNaN(c[0]) && 
+            !isNaN(c[1]) &&
+            Math.abs(c[0]) <= 180 && // Valid longitude
+            Math.abs(c[1]) <= 90     // Valid latitude
+          )
+          return validCoords.length >= 2 ? validCoords : null
+        })
+        .filter(route => route !== null)
+      
+      if (validRoutes.length === 0) {
+        throw new Error('No valid route segments found')
+      }
+      
+      if (validRoutes.length === 1) {
+        // Single route - use LineString
+        routeLine = turf.lineString(validRoutes[0])
+      } else {
+        // Multiple routes - use MultiLineString to keep them separate
+        routeLine = turf.multiLineString(validRoutes)
+      }
+      
+      console.log(`Using ${validRoutes.length} separate route(s) with ${validRoutes.reduce((sum, r) => sum + r.length, 0)} total coordinates`)
+    } else if (Array.isArray(firstElement) && 
+               firstElement.length >= 2 && 
+               typeof firstElement[0] === 'number' && 
+               typeof firstElement[1] === 'number') {
       // It's a flat array of coordinates: [[lng, lat], [lng, lat], ...]
-      allCoords = routeGeometry.filter(c => 
+      const validCoords = routeGeometry.filter(c => 
         Array.isArray(c) && 
         c.length >= 2 && 
         typeof c[0] === 'number' && 
@@ -36,80 +71,16 @@ export const findClosureBoundaries = (routeGeometry, roadNetwork, bufferMeters =
         Math.abs(c[0]) <= 180 && // Valid longitude
         Math.abs(c[1]) <= 90     // Valid latitude
       )
+      
+      if (validCoords.length < 2) {
+        throw new Error('Insufficient valid coordinates for route line')
+      }
+      
+      routeLine = turf.lineString(validCoords)
+      console.log(`Using single route with ${validCoords.length} coordinates`)
     } else {
-      // It's an array of route objects
-      routeGeometry.forEach(route => {
-        if (Array.isArray(route)) {
-          // It's a coordinate array directly: [[lng, lat], [lng, lat], ...]
-          allCoords.push(...route.filter(c => 
-            Array.isArray(c) && 
-            c.length >= 2 && 
-            typeof c[0] === 'number' && 
-            typeof c[1] === 'number' &&
-            !isNaN(c[0]) && 
-            !isNaN(c[1])
-          ))
-        } else if (route && route.geometry && Array.isArray(route.geometry)) {
-          // Route has geometry array: [lng, lat] format
-          allCoords.push(...route.geometry.filter(c => 
-            Array.isArray(c) && 
-            c.length >= 2 && 
-            typeof c[0] === 'number' && 
-            typeof c[1] === 'number' &&
-            !isNaN(c[0]) && 
-            !isNaN(c[1])
-          ))
-        } else if (route && route.coordinates && Array.isArray(route.coordinates)) {
-          // Route has coordinates: need to check format
-          const coords = route.coordinates.map(c => {
-            if (Array.isArray(c) && c.length >= 2 && 
-                typeof c[0] === 'number' && typeof c[1] === 'number' &&
-                !isNaN(c[0]) && !isNaN(c[1])) {
-              // Check if it's [lat, lng] or [lng, lat]
-              // If first value > 90 or < -90, it's likely lng, otherwise assume lat
-              if (Math.abs(c[0]) <= 90 && Math.abs(c[1]) <= 180) {
-                // Likely [lat, lng], convert to [lng, lat]
-                return [c[1], c[0]]
-              }
-              // Already [lng, lat]
-              return c
-            }
-            return null
-          }).filter(c => c !== null)
-          allCoords.push(...coords)
-        }
-      })
+      throw new Error(`Invalid route geometry format: expected array of coordinate arrays`)
     }
-    
-    if (allCoords.length === 0) {
-      console.error('Route geometry structure:', {
-        length: routeGeometry.length,
-        firstElement: routeGeometry[0],
-        firstElementType: typeof routeGeometry[0],
-        firstElementIsArray: Array.isArray(routeGeometry[0])
-      })
-      throw new Error('No valid coordinates found in route geometry. Check console for details.')
-    }
-    
-    // Final validation: ensure all coordinates are valid [lng, lat] pairs
-    const validCoords = allCoords.filter(c => 
-      Array.isArray(c) && 
-      c.length >= 2 && 
-      typeof c[0] === 'number' && 
-      typeof c[1] === 'number' &&
-      !isNaN(c[0]) && 
-      !isNaN(c[1]) &&
-      Math.abs(c[0]) <= 180 && // Valid longitude
-      Math.abs(c[1]) <= 90     // Valid latitude
-    )
-    
-    if (validCoords.length === 0) {
-      console.error('Filtered coordinates sample:', allCoords.slice(0, 5))
-      throw new Error(`No valid coordinates after filtering. Had ${allCoords.length} coordinates before filtering. Check console for details.`)
-    }
-    
-    console.log(`Using ${validCoords.length} valid coordinates for closure analysis`)
-    routeLine = turf.lineString(validCoords)
   } else if (routeGeometry.type === 'LineString') {
     routeLine = turf.feature({ type: 'LineString', coordinates: routeGeometry.coordinates })
   } else if (routeGeometry.type === 'Feature' && routeGeometry.geometry.type === 'LineString') {
@@ -146,28 +117,120 @@ export const findClosureBoundaries = (routeGeometry, roadNetwork, bufferMeters =
     }
   })
   
-  // 3. Find intersection points where roads cross closure boundary
+  // 3. Find actual intersections where roads meet, near the closure boundary
+  // This ensures roads are closed at intersections, not before they touch the route
   const boundaryPoints = []
   const boundaryLine = turf.polygonToLine(closurePolygon)
   
+  // First, find all road-to-road intersections within the affected area
+  const roadIntersections = new Map() // key: "lng,lat", value: {roads: [], point: [lng, lat]}
+  
+  // Find intersections between affected roads
+  for (let i = 0; i < affectedRoads.length; i++) {
+    for (let j = i + 1; j < affectedRoads.length; j++) {
+      try {
+        const road1 = affectedRoads[i]
+        const road2 = affectedRoads[j]
+        const intersections = turf.lineIntersect(road1, road2)
+        
+        if (intersections.features && intersections.features.length > 0) {
+          intersections.features.forEach(point => {
+            const coord = point.geometry.coordinates
+            const key = `${coord[0].toFixed(6)},${coord[1].toFixed(6)}`
+            
+            // Check if this intersection is near the closure boundary
+            // Create a small buffer around the point and check if it intersects the boundary
+            const pointBuffer = turf.buffer(point, 50, { units: 'meters' })
+            const isNearBoundary = turf.booleanIntersects(pointBuffer, boundaryLine)
+            
+            // Only include intersections that are close to the closure boundary (within 50m)
+            if (isNearBoundary) {
+              // Approximate distance: use a small value since we're already filtering by buffer
+              const distanceToBoundary = 25 // Approximate, since we filtered by 50m buffer
+              if (!roadIntersections.has(key)) {
+                roadIntersections.set(key, {
+                  point: coord,
+                  roads: [],
+                  distanceToBoundary
+                })
+              }
+              const intersection = roadIntersections.get(key)
+              if (!intersection.roads.find(r => r.id === road1.properties.id)) {
+                intersection.roads.push({
+                  id: road1.properties.id,
+                  name: road1.properties.name || 'Unnamed Road',
+                  class: road1.properties.highway || 'unknown'
+                })
+              }
+              if (!intersection.roads.find(r => r.id === road2.properties.id)) {
+                intersection.roads.push({
+                  id: road2.properties.id,
+                  name: road2.properties.name || 'Unnamed Road',
+                  class: road2.properties.highway || 'unknown'
+                })
+              }
+            }
+          })
+        }
+      } catch (e) {
+        console.warn('Error finding road intersections:', e)
+      }
+    }
+  }
+  
+  // Convert intersections to boundary points
+  roadIntersections.forEach((intersection, key) => {
+    // Find the road that leads into the closure (the one we need to close)
+    intersection.roads.forEach(road => {
+      boundaryPoints.push({
+        id: `boundary-${road.id}-${key}`,
+        point: intersection.point,
+        road_id: road.id,
+        road_name: road.name,
+        road_class: road.class,
+        status: 'intersection', // This is an actual intersection
+        intersection_roads: intersection.roads.map(r => r.id),
+        distance_to_boundary: intersection.distanceToBoundary
+      })
+    })
+  })
+  
+  // Also find where roads directly cross the boundary (for dead-end roads)
   affectedRoads.forEach(road => {
     try {
       const intersections = turf.lineIntersect(road, boundaryLine)
       
       if (intersections.features && intersections.features.length > 0) {
         intersections.features.forEach((point, index) => {
-          boundaryPoints.push({
-            id: `boundary-${road.properties.id}-${index}`,
-            point: point.geometry.coordinates, // [lng, lat]
-            road_id: road.properties.id,
-            road_name: road.properties.name || 'Unnamed Road',
-            road_class: road.properties.highway || 'unknown',
-            status: 'boundary' // This is where open meets closed
+          const coord = point.geometry.coordinates
+          const key = `${coord[0].toFixed(6)},${coord[1].toFixed(6)}`
+          
+          // Only add if we haven't already added this as an intersection
+          const isExistingIntersection = Array.from(roadIntersections.keys()).some(k => {
+            const existingPoint = roadIntersections.get(k).point
+            const distance = turf.distance(
+              turf.point(coord),
+              turf.point(existingPoint),
+              { units: 'meters' }
+            )
+            return distance < 10 // Within 10 meters = same intersection
           })
+          
+          if (!isExistingIntersection) {
+            boundaryPoints.push({
+              id: `boundary-${road.properties.id}-direct-${index}`,
+              point: coord,
+              road_id: road.properties.id,
+              road_name: road.properties.name || 'Unnamed Road',
+              road_class: road.properties.highway || 'unknown',
+              status: 'boundary', // Direct boundary crossing (dead-end or cul-de-sac)
+              intersection_roads: [road.properties.id]
+            })
+          }
         })
       }
     } catch (e) {
-      console.warn('Error finding intersections for road:', road.properties.id, e)
+      console.warn('Error finding boundary crossings for road:', road.properties.id, e)
     }
   })
   
