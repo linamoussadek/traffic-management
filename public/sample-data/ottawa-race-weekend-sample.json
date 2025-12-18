@@ -1,0 +1,125 @@
+{
+  "map_id": 6,
+  "map_name": "2025 Ottawa Race Weekend Sunday",
+  "event_id": 5,
+  "map_date": "2025-05-25",
+  "closure_min_minute": 240,
+  "closure_max_minute": 960,
+  "markers": {
+    "raceinfo": [
+      {
+        "id": 1,
+        "lat": "45.410417",
+        "lng": "-75.729545",
+        "description": "Start Line",
+        "name": "Start"
+      },
+      {
+        "id": 2,
+        "lat": "45.420000",
+        "lng": "-75.720000",
+        "description": "Finish Line",
+        "name": "Finish"
+      }
+    ],
+    "medical": [
+      {
+        "id": 3,
+        "lat": "45.415000",
+        "lng": "-75.725000",
+        "description": "Medical Station 1",
+        "name": "Medical 1"
+      }
+    ],
+    "waterstation": [
+      {
+        "id": 4,
+        "lat": "45.412000",
+        "lng": "-75.727000",
+        "description": "Water Station 1",
+        "name": "Water 1"
+      }
+    ]
+  },
+  "routes": {
+    "line_points": [
+      {
+        "line_points_id": 1,
+        "lat": "45.410417",
+        "lng": "-75.729545",
+        "line_id": 168,
+        "sortorder": "1.0"
+      },
+      {
+        "line_points_id": 2,
+        "lat": "45.411000",
+        "lng": "-75.728000",
+        "line_id": 168,
+        "sortorder": "2.0"
+      },
+      {
+        "line_points_id": 3,
+        "lat": "45.412000",
+        "lng": "-75.727000",
+        "line_id": 168,
+        "sortorder": "3.0"
+      },
+      {
+        "line_points_id": 4,
+        "lat": "45.413000",
+        "lng": "-75.726000",
+        "line_id": 168,
+        "sortorder": "4.0"
+      },
+      {
+        "line_points_id": 5,
+        "lat": "45.414000",
+        "lng": "-75.725000",
+        "line_id": 168,
+        "sortorder": "5.0"
+      },
+      {
+        "line_points_id": 6,
+        "lat": "45.415000",
+        "lng": "-75.724000",
+        "line_id": 168,
+        "sortorder": "6.0"
+      },
+      {
+        "line_points_id": 7,
+        "lat": "45.416000",
+        "lng": "-75.723000",
+        "line_id": 168,
+        "sortorder": "7.0"
+      },
+      {
+        "line_points_id": 8,
+        "lat": "45.417000",
+        "lng": "-75.722000",
+        "line_id": 168,
+        "sortorder": "8.0"
+      },
+      {
+        "line_points_id": 9,
+        "lat": "45.418000",
+        "lng": "-75.721000",
+        "line_id": 168,
+        "sortorder": "9.0"
+      },
+      {
+        "line_points_id": 10,
+        "lat": "45.419000",
+        "lng": "-75.720000",
+        "line_id": 168,
+        "sortorder": "10.0"
+      },
+      {
+        "line_points_id": 11,
+        "lat": "45.420000",
+        "lng": "-75.719000",
+        "line_id": 168,
+        "sortorder": "11.0"
+      }
+    ]
+  }
+}
